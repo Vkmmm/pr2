@@ -1,0 +1,306 @@
+#include <iostream>
+#include <string>
+#include <unordered_set>
+#include <iomanip>
+
+using namespace std;
+
+int hashf1(int s, int table_size) { // Первая хеш функция
+    int hash1 = s % table_size;
+    return hash1;
+}
+
+int hashf2(int s, int table_size) { // Вторая хеш функция. Используется во время решения коллизий
+    int hash2 = 1 + (s % 11);
+    return hash2;
+}
+
+struct Info {
+    string name;
+    string founder;
+    Info(string Name, string Founder) : name(Name), founder(Founder) {}
+    Info() : name("default"), founder("default") {};
+};
+
+class HashTable {
+    const int standard_size = 10;
+    struct obj {
+        int value;
+        bool state;
+        Info* info;
+        obj(int Value, Info* info_) : value(Value), info(info_), state(true) {}
+    };
+
+    Info* data;
+    obj** table;
+
+    int size;
+    int size_del;
+    int now_size;
+    int count_data_files;
+
+    /*void resize() {
+        int pr_now_size = now_size;
+        now_size = now_size * 2;
+        size = 0;
+        size_del = 0;
+        obj** new_array = new obj * [now_size];
+        for (int i = 0; i < now_size; i++)
+            new_array[i] = nullptr;
+        swap(table, new_array);
+        for (int i = 0; i < pr_now_size; i++) {
+            if (table[i]->state && table[i]) {
+                add(table[i]->value, *(table[i]->info));
+                i++;
+            }
+        }
+        for (int i = 0; i < pr_now_size; i++) {
+            delete[] table;
+        }
+    }*/
+    void resize() {
+        int pr_now_size = now_size;
+        now_size = now_size * 2;
+        size = 0;
+        size_del = 0;
+        obj** new_array = new obj * [now_size] {};  // Инициализируем nullptr
+        swap(table, new_array);
+
+        for (int i = 0; i < pr_now_size; i++) {
+            if (table[i] != nullptr && table[i]->state) {
+                add(table[i]->value, *(table[i]->info));
+                delete table[i];
+            }
+        }
+
+        delete[] new_array;
+    }
+    /*void rehash() {
+        size = 0;
+        size_del = 0;
+        obj** old_array = new obj * [now_size];
+        for (int i = 0; i < now_size; i++)
+            old_array[i] = nullptr;
+        swap(table, old_array);
+        for (int i = 0; i < now_size; i++) {
+            if (old_array[i] != nullptr && old_array[i]->state) {
+                add(old_array[i]->value, *(old_array[i]->info));
+                i++;
+            }
+        }
+        for (int i = 0; i < now_size; i++) {
+            delete old_array[i];
+        }
+        delete[] old_array;
+    }*/
+    void rehash() {
+        size = 0;
+        size_del = 0;
+        obj** old_array = new obj * [now_size] {};
+        swap(table, old_array);
+
+        for (int i = 0; i < now_size; i++) {
+            if (old_array[i] != nullptr && old_array[i]->state) {
+                add(old_array[i]->value, *(old_array[i]->info));
+                delete old_array[i];
+            }
+        }
+
+        delete[] old_array;
+
+    }
+
+public:
+    HashTable() {
+        now_size = standard_size;
+        size = 0;
+        size_del = 0;
+        count_data_files = 0;
+        table = new obj * [now_size];
+        data = new Info[now_size];
+        for (int i = 0; i < now_size; i++) {
+            table[i] = nullptr;
+        }
+    }
+
+    ~HashTable() {
+        for (int i = 0; i < now_size; i++) {
+            delete table[i];
+        }
+        delete[] table;
+        delete[] data;
+    }
+
+    bool find(int value) { // Поиск элемента по таблице
+        int hash1 = hashf1(value, now_size); // Вызов первой хеш функции
+        int hash2 = hashf2(value, now_size); // Вызов второй хеш функции
+
+        for (int i = 0; i < now_size; ++i) {
+            if (table[hash1] != nullptr && table[hash1]->value == value && table[hash1]->state) return true;
+            hash1 = (hash1 + hash2) % now_size; // Увеличиваем шаг поиска
+        }
+        return false;
+    }
+
+    bool remove(int value) { // Удаление элемента
+        int hash1 = hashf1(value, now_size); // Вызов первой хеш функции
+        int hash2 = hashf2(value, now_size); // Вызов второй хеш функции
+
+        for (int i = 0; i < now_size; ++i) {
+            if (table[hash1] != nullptr && table[hash1]->value == value && table[hash1]->state) {
+                table[hash1]->state = false; // Установление поля отвечающего за доступ к ячейке
+                return true;
+            }
+            hash1 = (hash1 + hash2) % now_size; // Увеличиваем шаг поиска
+        }
+        return false;
+    }
+
+   /* bool add(int value, Info n_data) {
+        if (size + 1 > now_size * 0.75)
+            rehash();
+        if (size_del > 2 * size)
+            rehash();
+
+        int hash1 = hashf1(value, now_size);
+        int hash2 = hashf2(value, now_size);
+        int suit_pos = -1;
+        int i = 0;
+        data[count_data_files] = n_data;
+
+        while (table[hash1] != nullptr && i < now_size) {
+            if (table[hash1]->value == value && table[hash1]->state)
+                return false;
+            if (!table[hash1]->state && suit_pos == -1)
+                suit_pos = hash1;
+            hash1 = (hash1 + hash2) % now_size;
+            ++i;
+        }
+
+        if (suit_pos == -1) {
+            table[hash1] = new obj(value, &data[count_data_files]);
+            ++size_del;
+        }
+        else {
+            table[hash1]->state = true;
+            table[hash1]->value = value;
+            *table[hash1]->info = data[count_data_files];
+        }
+        ++size;
+        count_data_files++;
+        return true;
+    }*/
+    bool add(int value, Info n_data) {
+        if (size + 1 > now_size * 0.75)
+        resize();
+
+    if (size_del > 2 * size)
+        rehash();
+
+    int hash1 = hashf1(value, now_size);
+    int hash2 = hashf2(value, now_size);
+    int i = 0;
+    data[count_data_files] = n_data;
+
+    while (table[hash1] != nullptr && i < now_size) {
+        if (table[hash1]->value == value && table[hash1]->state)
+            return false;
+        if (!table[hash1]->state) {
+            table[hash1]->state = true;  // Set state to true
+            table[hash1]->value = value;
+            *table[hash1]->info = data[count_data_files];
+            ++size;
+            return true;
+        }
+        hash1 = (hash1 + hash2) % now_size;
+        ++i;
+    }
+
+    table[hash1] = new obj(value, &data[count_data_files]);
+    ++size;
+    ++count_data_files;
+    return true;
+    }
+    void print_table() {
+        int i = 0;
+        while (i < now_size) {
+            if (table[i] != nullptr && table[i]->state)
+                cout << table[i]->value << " " << table[i]->info->name << " " << table[i]->info->founder << endl;
+            i++;
+        }
+    }
+    
+};
+
+int main() {
+    setlocale(LC_ALL, "rus");
+    HashTable hashtable;
+    bool Exit = false;
+    while (true) {
+        int choice, key;
+        cout << "_____МЕНЮ_____" << endl << "(1) Вставка элемента в таблицу"
+            << endl << "(2) Удаление элемента из таблицы" << endl << "(3) Поиск элемента по ключу"
+            << endl << "(4) Вывод таблицы" << endl << "(5) Заполнение таблицы случайными элементами"
+            << endl << "(6) Завершение работы программы"
+            << endl << "Введите нужную цифру:" << endl;
+        cin >> choice;
+        if (choice < 1 or choice > 6) {
+            cout << "Ошибка ввода!";
+            return 0;
+        }
+        switch (choice) {
+        case 1: {
+            string name;
+            string founder;
+            cout << "Введите номер лицензии: ";
+            cin >> key;
+            if (hashtable.find(key)) {
+                cout << "Элемент с таким номером лицензии уже существует." << endl;
+            }
+            else {
+                cout << "Введите название предприятия и его учредителя через пробел:";
+                cin >> name >> founder;
+                hashtable.add(key, Info(name, founder));
+                cout << "Элемент добавлен." << endl;
+            }
+            break;
+        }
+        case 2: {
+            cout << "Введите ключ записи: ";
+            cin >> key;
+            if (hashtable.remove(key))
+                cout << "Элемент удален." << endl;
+            else
+                cout << "Элемент с указанным ключом не найден." << endl;
+            break;
+        }
+        case 3: {
+            cout << "Введите ключ записи: ";
+            cin >> key;
+            if (hashtable.find(key))
+                cout << "Элемент с указанным ключом найден." << endl;
+            else
+                cout << "Элемент с указанным ключом не найден." << endl;
+            break;
+        }
+        case 4: {
+            hashtable.print_table();
+            break;
+        }
+        case 5: {
+            hashtable.add_random();
+            cout << "Элементы вставлены!" << endl;
+            break;
+        }
+        case 6: {
+            Exit = true;
+            break;
+        }
+        }
+        if (Exit) {
+            cout << "Завершение работы";
+            break;
+        }
+    }
+    return 0;
+}
